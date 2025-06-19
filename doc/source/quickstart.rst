@@ -26,8 +26,8 @@ Concepts
 
 - **bootstrap:** A bootstrap is the app backend that will start your
   application. The default for graphical applications is SDL2.
-  You can also use e.g. the webview for web apps, or service_only for
-  background services. Different bootstraps have different additional
+  You can also use e.g. the webview for web apps, or service_only/service_library for
+  background services, or qt for PySide6 apps. Different bootstraps have different additional
   build options.
 
 *Advanced:*
@@ -56,38 +56,47 @@ You can also test the master branch from Github using::
 
     pip install git+https://github.com/kivy/python-for-android.git
 
-Installing Dependencies
-~~~~~~~~~~~~~~~~~~~~~~~
+Installing Prerequisites
+~~~~~~~~~~~~~~~~~~~~~~~~
 
-p4a has several dependencies that must be installed:
+p4a requires a few dependencies to be installed on your system to work
+properly. While we're working on a way to automate pre-requisites checks,
+suggestions and installation on all platforms (macOS is already supported),
+on Linux distros you'll need to install them manually.
 
-- git
-- ant
-- python2
-- cython (can be installed via pip)
-- a Java JDK (e.g. openjdk-8)
-- zlib (including 32 bit)
-- libncurses (including 32 bit)
-- unzip
-- virtualenv (can be installed via pip)
-- ccache (optional)
-- autoconf (for ffpyplayer_codecs recipe)
-- libtool (for ffpyplayer_codecs recipe)
-- cmake (required for some native code recipes like jpeg's recipe)
+On recent versions of Ubuntu and its derivatives you can easily install them via
+the following command (re-adapted from the `Dockerfile` we use to perform CI builds)::
 
-On recent versions of Ubuntu and its derivatives you may be able to
-install most of these with::
-
-    sudo dpkg --add-architecture i386
     sudo apt-get update
-    sudo apt-get install -y build-essential ccache git zlib1g-dev python2.7 python2.7-dev libncurses5:i386 libstdc++6:i386 zlib1g:i386 openjdk-8-jdk unzip ant ccache autoconf libtool
+    sudo apt-get install -y \
+        ant \
+        autoconf \
+        automake \
+        autopoint \
+        ccache \
+        cmake \
+        g++ \
+        gcc \
+        git \
+        lbzip2 \
+        libffi-dev \
+        libltdl-dev \
+        libtool \
+        libssl-dev \
+        make \
+        openjdk-17-jdk \
+        patch \
+        patchelf \
+        pkg-config \
+        python3 \
+        python3-dev \
+        python3-pip \
+        python3-venv \
+        sudo \
+        unzip \
+        wget \
+        zip
 
-On Arch Linux (64 bit) you should be able to run the following to
-install most of the dependencies (note: this list may not be
-complete). gcc-multilib will conflict with (and replace) gcc if not
-already installed::
-
-    sudo pacman -S jdk7-openjdk python2 python2-pip python2-kivy mesa-libgl lib32-mesa-libgl lib32-sdl2 lib32-sdl2_image lib32-sdl2_mixer sdl2_ttf unzip gcc-multilib gcc-libs-multilib
 
 Installing Android SDK
 ~~~~~~~~~~~~~~~~~~~~~~
@@ -110,7 +119,7 @@ named ``tools``, and you will need to run extra commands to install
 the SDK packages needed. 
 
 For Android NDK, note that modern releases will only work on a 64-bit
-operating system. **The minimal, and recommended, NDK version to use is r19b:**
+operating system. **The minimal, and recommended, NDK version to use is r25b:**
 
  - `Go to ndk downloads page <https://developer.android.com/ndk/downloads/>`_
  - Windows users should create a virtual machine with an GNU Linux os
@@ -144,7 +153,7 @@ variables necessary for building on android::
 
     # Adjust the paths!
     export ANDROIDSDK="$HOME/Documents/android-sdk-27"
-    export ANDROIDNDK="$HOME/Documents/android-ndk-r19b"
+    export ANDROIDNDK="$HOME/Documents/android-ndk-r23b"
     export ANDROIDAPI="27"  # Target API version of your application
     export NDKAPI="21"  # Minimum supported API version of your application
     export ANDROIDNDKVER="r10e"  # Version of the NDK you installed
@@ -183,9 +192,7 @@ an `.apk` file.
 
 *Compatibility notes:*
 
-- While python2 is still supported by python-for-android,
-  it will possibly no longer receive patches by the python creators
-  themselves in 2020. Migration to Python 3 is recommended!
+- Python 2 is no longer supported by python-for-android. The last release supporting Python 2 was v2019.10.06.
 
 
 Build a WebView application
@@ -204,6 +211,37 @@ You can also replace flask with another web framework.
 
 Replace ``--port=5000`` with the port on which your app will serve a
 website. The default for Flask is 5000.
+
+
+Build a Service library archive
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+To build an android archive (.aar), containing an android service , you need a name, version, package identifier, explicitly use the 
+service_library bootstrap, and declare service entry point (See :ref:`services <arbitrary_scripts_services>` for more options), as well as the requirements and arch(s)::
+
+    p4a aar --private $HOME/code/myapp --package=org.example.myapp --name "My library" --version 0.1 --bootstrap=service_library --requirements=python3 --release --service=myservice:service.py --arch=arm64-v8a --arch=armeabi-v7a
+
+
+You can then call the generated Java entrypoint(s) for your Python service(s) in other apk build frameworks.
+
+
+Exporting the Android App Bundle (aab) for distributing it on Google Play
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Starting from August 2021 for new apps and from November 2021 for updates to existings apps,
+Google Play Console will require the Android App Bundle instead of the long lived apk.
+
+python-for-android handles by itself the needed work to accomplish the new requirements::
+
+    p4a aab --private $HOME/code/myapp --package=org.example.myapp --name="My App" --version 0.1 --bootstrap=sdl2 --requirements=python3,kivy --arch=arm64-v8a --arch=armeabi-v7a --release
+
+This `p4a aab ...` command builds a distribution with `python3`,
+`kivy`, and everything else you specified in the requirements.
+It will be packaged using a SDL2 bootstrap, and produce
+an `.aab` file that contains binaries for both `armeabi-v7a` and `arm64-v8a` ABIs.
+
+The Android App Bundle, is supposed to be used for distributing your app.
+If you need to test it locally, on your device, you can use `bundletool <https://developer.android.com/studio/command-line/bundletool>`
 
 Other options
 ~~~~~~~~~~~~~
@@ -245,7 +283,7 @@ Recipe management
 You can see the list of the available recipes with::
 
     p4a recipes
-    
+
 If you are contributing to p4a and want to test a recipes again,
 you need to clean the build and rebuild your distribution::
 
@@ -259,7 +297,6 @@ it (edit the ``__init__.py``)::
 
     mkdir -p p4a-recipes/myrecipe
     touch p4a-recipes/myrecipe/__init__.py
-    
 
 Distribution management
 ~~~~~~~~~~~~~~~~~~~~~~~
@@ -327,5 +364,4 @@ See the other pages of this doc for more information on specific topics:
 - :doc:`bootstraps`
 - :doc:`apis`
 - :doc:`troubleshooting`
-- :doc:`launcher`
 - :doc:`contribute`

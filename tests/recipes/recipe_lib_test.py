@@ -35,12 +35,10 @@ class BaseTestForMakeRecipe(RecipeCtx):
 
     @mock.patch("pythonforandroid.recipe.Recipe.check_recipe_choices")
     @mock.patch("pythonforandroid.build.ensure_dir")
-    @mock.patch("pythonforandroid.archs.glob")
-    @mock.patch("pythonforandroid.archs.find_executable")
+    @mock.patch("shutil.which")
     def test_get_recipe_env(
         self,
-        mock_find_executable,
-        mock_glob,
+        mock_shutil_which,
         mock_ensure_dir,
         mock_check_recipe_choices,
     ):
@@ -48,10 +46,9 @@ class BaseTestForMakeRecipe(RecipeCtx):
         Test that get_recipe_env contains some expected arch flags and that
         some internal methods has been called.
         """
-        mock_find_executable.return_value = self.expected_compiler.format(
+        mock_shutil_which.return_value = self.expected_compiler.format(
                 android_ndk=self.ctx._ndk_dir, system=system().lower()
         )
-        mock_glob.return_value = ["llvm"]
         mock_check_recipe_choices.return_value = sorted(
             self.ctx.recipe_build_order
         )
@@ -69,33 +66,29 @@ class BaseTestForMakeRecipe(RecipeCtx):
             self.assertIn(value, env[flag])
 
         # make sure that the mocked methods are actually called
-        mock_glob.assert_called()
         mock_ensure_dir.assert_called()
-        mock_find_executable.assert_called()
+        mock_shutil_which.assert_called()
         mock_check_recipe_choices.assert_called()
 
     @mock.patch("pythonforandroid.util.chdir")
     @mock.patch("pythonforandroid.build.ensure_dir")
-    @mock.patch("pythonforandroid.archs.glob")
-    @mock.patch("pythonforandroid.archs.find_executable")
+    @mock.patch("shutil.which")
     def test_build_arch(
         self,
-        mock_find_executable,
-        mock_glob,
+        mock_shutil_which,
         mock_ensure_dir,
         mock_current_directory,
     ):
-        mock_find_executable.return_value = self.expected_compiler.format(
+        mock_shutil_which.return_value = self.expected_compiler.format(
                 android_ndk=self.ctx._ndk_dir, system=system().lower()
         )
-        mock_glob.return_value = ["llvm"]
 
         # Since the following mocks are dynamic,
         # we mock it inside a Context Manager
         with mock.patch(
             f"pythonforandroid.recipes.{self.recipe_name}.sh.Command"
         ) as mock_sh_command, mock.patch(
-            f"pythonforandroid.recipes.{self.recipe_name}.sh.make"
+            f"pythonforandroid.recipes.{self.recipe_name}.sh.make", create=True
         ) as mock_make:
             self.recipe.build_arch(self.arch)
 
@@ -106,10 +99,9 @@ class BaseTestForMakeRecipe(RecipeCtx):
                 mock_sh_command.mock_calls,
             )
         mock_make.assert_called()
-        mock_glob.assert_called()
         mock_ensure_dir.assert_called()
         mock_current_directory.assert_called()
-        mock_find_executable.assert_called()
+        mock_shutil_which.assert_called()
 
 
 class BaseTestForCmakeRecipe(BaseTestForMakeRecipe):
@@ -124,33 +116,29 @@ class BaseTestForCmakeRecipe(BaseTestForMakeRecipe):
 
     @mock.patch("pythonforandroid.util.chdir")
     @mock.patch("pythonforandroid.build.ensure_dir")
-    @mock.patch("pythonforandroid.archs.glob")
-    @mock.patch("pythonforandroid.archs.find_executable")
+    @mock.patch("shutil.which")
     def test_build_arch(
         self,
-        mock_find_executable,
-        mock_glob,
+        mock_shutil_which,
         mock_ensure_dir,
         mock_current_directory,
     ):
-        mock_find_executable.return_value = self.expected_compiler.format(
+        mock_shutil_which.return_value = self.expected_compiler.format(
                 android_ndk=self.ctx._ndk_dir, system=system().lower()
         )
-        mock_glob.return_value = ["llvm"]
 
         # Since the following mocks are dynamic,
         # we mock it inside a Context Manager
         with mock.patch(
-            f"pythonforandroid.recipes.{self.recipe_name}.sh.make"
+            f"pythonforandroid.recipes.{self.recipe_name}.sh.make", create=True
         ) as mock_make, mock.patch(
-            f"pythonforandroid.recipes.{self.recipe_name}.sh.cmake"
+            f"pythonforandroid.recipes.{self.recipe_name}.sh.cmake", create=True
         ) as mock_cmake:
             self.recipe.build_arch(self.arch)
 
         # make sure that the mocked methods are actually called
         mock_cmake.assert_called()
         mock_make.assert_called()
-        mock_glob.assert_called()
         mock_ensure_dir.assert_called()
         mock_current_directory.assert_called()
-        mock_find_executable.assert_called()
+        mock_shutil_which.assert_called()

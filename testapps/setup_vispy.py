@@ -1,12 +1,11 @@
-
-from distutils.core import setup
-from setuptools import find_packages
+from setuptools import setup, find_packages
 
 options = {'apk': {'debug': None,
                    'requirements': 'python3,vispy',
                    'blacklist-requirements': 'openssl,sqlite3',
                    'android-api': 27,
                    'ndk-api': 21,
+                   'bootstrap': 'empty',
                    'ndk-dir': '/home/asandy/android/android-ndk-r17c',
                    'dist-name': 'bdisttest',
                    'ndk-version': '10.3.2',

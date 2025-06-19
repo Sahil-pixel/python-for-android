@@ -1,11 +1,10 @@
-from distutils.core import setup
-from setuptools import find_packages
+from setuptools import setup
 
 options = {'apk': {'debug': None,
                    'bootstrap': 'sdl2',
                    'launcher': None,
                    'requirements': (
-                        'python2,sdl2,android,'
+                        'python3,sdl2,android,'
                         'sqlite3,docutils,pygments,kivy,pyjnius,plyer,'
                         'cymunk,lxml,pil,openssl,pyopenssl,'
                         'twisted'),  # audiostream, ffmpeg, numpy

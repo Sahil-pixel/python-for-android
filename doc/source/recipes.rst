@@ -41,7 +41,7 @@ The basic declaration of a recipe is as follows::
       patches = ['some_fix.patch']  # Paths relative to the recipe dir
 
       depends = ['kivy', 'sdl2']  # These are just examples
-      conflicts = ['python2'] 
+      conflicts = ['generickndkbuild']
     
   recipe = YourRecipe()
 
@@ -54,22 +54,41 @@ omitted if the source is somehow loaded from elsewhere.
 You must include ``recipe = YourRecipe()``. This variable is accessed
 when the recipe is imported.
 
+Specifying the URL
+------------------
+
 .. note:: The url includes the ``{version}`` tag. You should only
           access the url with the ``versioned_url`` property, which
           replaces this with the version attribute.
 
+.. note:: you may need to specify additional headers to allow python-for-android
+          to download the archive. Specify your additional headers by setting the
+          download_headers property.
+
+For example, when downloading from a private github repository, you can specify the following:
+
+(For the download_headers property in your recipe)
+```
+[('Authorization', 'token <your personal access token>'), ('Accept', 'application/vnd.github+json')]
+```
+
+(For the DOWNLOAD_HEADERS_my-package-name environment variable - specify as a JSON formatted set of values)
+.. code-block:: bash
+
+    [["Authorization","token <your personal access token>"],["Accept", "application/vnd.github+json"]]
+
 The actual build process takes place via three core methods::
 
       def prebuild_arch(self, arch):
-          super(YourRecipe, self).prebuild_arch(arch)
+          super().prebuild_arch(arch)
           # Do any pre-initialisation
 
       def build_arch(self, arch):
-          super(YourRecipe, self).build_arch(arch)
+          super().build_arch(arch)
           # Do the main recipe build
          
       def postbuild_arch(self, arch):
-          super(YourRecipe, self).build_arch(arch)
+          super().build_arch(arch)
           # Do any clearing up
 
 These methods are always run in the listed order; prebuild, then
@@ -86,7 +105,7 @@ context manager defined in toolchain.py::
 
   from pythonforandroid.toolchain import current_directory
   def build_arch(self, arch):
-      super(YourRecipe, self).build_arch(arch)
+      super().build_arch(arch)
       with current_directory(self.get_build_dir(arch.arch)):
           with open('example_file.txt', 'w') as fileh:
               fileh.write('This is written to a file within the build dir')
@@ -178,7 +197,7 @@ environment for any processes that you call. It is convenient to do
 this using the ``sh`` module as follows::
 
   def build_arch(self, arch):
-      super(YourRecipe, self).build_arch(arch)
+      super().build_arch(arch)
       env = self.get_recipe_env(arch)
       sh.echo('$PATH', _env=env)  # Will print the PATH entry from the
                                   # env dict
@@ -196,7 +215,7 @@ the following when compiling for SDL2, in order to tell Kivy what
 backend to use::
 
     def get_recipe_env(self, arch):
-        env = super(KivySDL2Recipe, self).get_recipe_env(arch)
+        env = super().get_recipe_env(arch)
         env['USE_SDL2'] = '1'
 
         env['KIVY_SDL2_PATH'] = ':'.join([
@@ -256,7 +275,7 @@ for the Vispy module::
       version = 'master'
       url = 'https://github.com/vispy/vispy/archive/{version}.zip'
 
-      depends = ['python2', 'numpy']
+      depends = ['python3', 'numpy']
       
       site_packages_name = 'vispy'
 
@@ -272,7 +291,7 @@ Python installation.
 For reference, the code that accomplishes this is the following::
 
     def build_arch(self, arch):
-        super(PythonRecipe, self).build_arch(arch)
+        super().build_arch(arch)
         self.install_python_package()
 
     def install_python_package(self):
@@ -426,7 +445,7 @@ overrides if you do not use them::
         url = 'http://example.com/example-{version}.tar.gz'
         # {version} will be replaced with self.version when downloading
 
-        depends = ['python2', 'numpy']  # A list of any other recipe names
+        depends = ['python3', 'numpy']  # A list of any other recipe names
                                         # that must be built before this
                                         # one
 
@@ -434,7 +453,7 @@ overrides if you do not use them::
                         # alongside this one
 
         def get_recipe_env(self, arch):
-            env = super(YourRecipe, self).get_recipe_env(arch)
+            env = super().get_recipe_env(arch)
             # Manipulate the env here if you want
             return env
 
@@ -444,19 +463,19 @@ overrides if you do not use them::
             return True
 
         def prebuild_arch(self, arch):
-            super(YourRecipe, self).prebuild_arch(self)
+            super().prebuild_arch(self)
             # Do any extra prebuilding you want, e.g.:
             self.apply_patch('path/to/patch.patch')
 
         def build_arch(self, arch):
-            super(YourRecipe, self).build_arch(self)
+            super().build_arch(self)
             # Build the code. Make sure to use the right build dir, e.g.
             with current_directory(self.get_build_dir(arch.arch)):
                 sh.ls('-lathr')  # Or run some commands that actually do
                                  # something
 
         def postbuild_arch(self, arch):
-            super(YourRecipe, self).prebuild_arch(self)
+            super().prebuild_arch(self)
             # Do anything you want after the build, e.g. deleting
             # unnecessary files such as documentation
 
@@ -486,7 +505,7 @@ how to create your own Recipe subclass.
 
 .. autoclass:: toolchain.Recipe
    :members:
-   :member-order: = 'bysource'
+   :member-order: bysource
 
 
 

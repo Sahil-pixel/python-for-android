@@ -12,22 +12,8 @@ in the compilation and packaging steps.
 
 If reporting a problem by email or Discord, it is usually helpful to
 include this full log, e.g. via a `pastebin
-<http://paste.ubuntu.com/>`_ or `Github gist
+<https://pastebin.ubuntu.com/>`_ or `Github gist
 <https://gist.github.com/>`_.
-
-Getting help
-------------
-
-python-for-android is managed by the Kivy Organisation, and you can
-get help with any problems using the same channels as Kivy itself:
-
-- by email to the `kivy-users Google group
-  <https://groups.google.com/forum/#!forum/kivy-users>`_
-- on `#support Discord channel <https://chat.kivy.org/>`_
-
-If you find a bug, you can also post an issue on the
-`python-for-android Github page
-<https://github.com/kivy/python-for-android>`_.
 
 Debugging on Android
 --------------------
@@ -64,15 +50,15 @@ can also do other debugging tasks such as ``python-for-android adb
 devices`` to get the list of connected devices.
 
 For further information, see the Android docs on `adb
-<http://developer.android.com/intl/zh-cn/tools/help/adb.html>`_, and
+<https://developer.android.com/tools/adb>`_, and
 on `logcat
-<http://developer.android.com/intl/zh-cn/tools/help/logcat.html>`_ in
+<https://developer.android.com/tools/logcat>`_ in
 particular.
 
 Unpacking an APK
 ----------------
 
-It is sometimes useful to unpack a pacakged APK to see what is inside,
+It is sometimes useful to unpack a packaged APK to see what is inside,
 especially when debugging python-for-android itself.
 
 APKs are just zip files, so you can extract the contents easily::
@@ -85,115 +71,37 @@ At the top level, this will always contain the same set of files::
   AndroidManifest.xml  classes.dex  META-INF     res
   assets               lib          YourApk.apk  resources.arsc
 
-The Python distribution is in the assets folder::
+The user app data (code, images, fonts ..) is packaged into a single tarball contained in the assets folder::
 
   $ cd assets
   $ ls
-  private.mp3
+  private.tar
 
-``private.mp3`` is actually a tarball containing all your packaged
-data, and the Python distribution. Extract it::
+``private.tar`` is a tarball containing all your packaged
+data. Extract it::
 
-  $ tar xf private.mp3
+  $ tar xf private.tar
 
-This will reveal all the Python-related files::
+This will reveal all the user app data (the files shown below are from the touchtracer demo)::
 
   $ ls
-  android_runnable.pyo  include          interpreter_subprocess  main.kv   pipinterface.kv   settings.pyo
-  assets                __init__.pyo     interpreterwrapper.pyo  main.pyo  pipinterface.pyo  utils.pyo
-  editor.kv             interpreter.kv   _python_bundle          menu.kv   private.mp3       widgets.pyo
-  editor.pyo            interpreter.pyo  libpymodules.so         menu.pyo  settings.kv
+  README.txt		android.txt		icon.png		main.pyc		p4a_env_vars.txt	particle.png
+  private.tar		touchtracer.kv
 
-Most of these files have been included by the user (in this case, they
-come from one of my own apps), the rest relate to the python
-distribution.
+Due to how We're required to ship ABI-specific things in Android App Bundle,
+the Python installation is packaged separately, as (most of it) is ABI-specific.
 
-The python installation, along with all side-packages, is mostly contained
-inside the `_python_bundle` folder.
+For example, the Python installation for ``arm64-v8a`` is available in ``lib/arm64-v8a/libpybundle.so``
 
+``libpybundle.so`` is a tarball (but named like a library for packaging requirements), that contains our ``_python_bundle``::
 
-Common errors
--------------
+  $ tar xf libpybundle.so
+  $ cd _python_bundle
+  $ ls
+  modules		site-packages	stdlib.zip
 
-The following are common problems and resolutions that users have reported.
+FAQ
+---
 
-
-AttributeError: 'AnsiCodes' object has no attribute 'LIGHTBLUE_EX'
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-This occurs if your version of colorama is too low, install version
-0.3.3 or higher.
-
-If you install python-for-android with pip or via setup.py, this
-dependency should be taken care of automatically.
-
-AttributeError: 'Context' object has no attribute 'hostpython'
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-This is a known bug in some releases. To work around it, add your
-python requirement explicitly,
-e.g. :code:`--requirements=python2,kivy`. This also applies when using
-buildozer, in which case add python2 to your buildozer.spec requirements.
-
-linkname too long
-~~~~~~~~~~~~~~~~~
-
-This can happen when you try to include a very long filename, which
-doesn't normally happen but can occur accidentally if the p4a
-directory contains a .buildozer directory that is not excluded from
-the build (e.g. if buildozer was previously used). Removing this
-directory should fix the problem, and is desirable anyway since you
-don't want it in the APK.
-
-Errors related to Java version
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-The errors listed below are related to Java version mismatch, it should be
-fixed by installing Java 8.
-
-- :code:`java.lang.UnsupportedClassVersionError: com/android/dx/command/Main`
-- :code:`java.lang.NoClassDefFoundError: sun/misc/BASE64Encoder`
-- :code:`java.lang.NoClassDefFoundError: javax/xml/bind/annotation/XmlSchema`
-
-On Ubuntu fix it my making sure only the :code:`openjdk-8-jdk` package is installed::
-
-    apt remove --purge openjdk-*-jdk
-    apt install openjdk-8-jdk
-
-In the similar fashion for macOS you need to install the :code:`java8` package::
-
-    brew cask install java8
-
-
-JNI DETECTED ERROR IN APPLICATION: static jfieldID 0x0000000 not valid for class java.lang.Class<org.renpy.android.PythonActivity>
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-This error appears in the logcat log if you try to access
-``org.renpy.android.PythonActivity`` from within the new toolchain. To
-fix it, change your code to reference
-``org.kivy.android.PythonActivity`` instead.
-
-websocket-client: if you see errors relating to 'SSL not available'
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-Ensure you have the package backports.ssl-match-hostname in the buildozer requirements, since Kivy targets python 2.7.x
-
-You may also need sslopt={"cert_reqs": ssl.CERT_NONE} as a parameter to ws.run_forever() if you get an error relating to host verification
-
-Requested API target 19 is not available, install it with the SDK android tool
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-This means that your SDK is missing the required platform tools. You
-need to install the ``platforms;android-19`` package in your SDK,
-using the ``android`` or ``sdkmanager`` tools (depending on SDK
-version).
-
-If using buildozer this should be done automatically, but as a
-workaround you can run these from
-``~/.buildozer/android/platform/android-sdk-20/tools/android``.
-
-ModuleNotFoundError: No module named '_ctypes'
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-You do not have the libffi headers available to python-for-android, so you need to install them. On Ubuntu and derivatives these come from the `libffi-dev` package.
-
-After installing the headers, clean the build (`p4a clean builds`, or with buildozer delete the `.buildozer` directory within your app directory) and run python-for-android again.
+Check out the `online FAQ <https://github.com/kivy/python-for-android/blob/master/FAQ.md>`_ for common
+errors.

@@ -1,33 +1,93 @@
-
-from pythonforandroid.recipe import CppCompiledComponentsPythonRecipe
+from pythonforandroid.recipe import PyProjectRecipe
+from pythonforandroid.util import ensure_dir
 
 from os.path import join
+import shutil
 
 
-class MatplotlibRecipe(CppCompiledComponentsPythonRecipe):
-
-    version = '3.0.3'
+class MatplotlibRecipe(PyProjectRecipe):
+    version = '3.8.4'
     url = 'https://github.com/matplotlib/matplotlib/archive/v{version}.zip'
+    patches = ["skip_macos.patch"]
+    depends = ['kiwisolver', 'numpy', 'pillow', 'setuptools', 'freetype']
+    python_depends = ['cycler', 'fonttools', 'packaging', 'pyparsing', 'python-dateutil']
+    need_stl_shared = True
 
-    depends = ['numpy', 'png', 'setuptools', 'freetype', 'kiwisolver']
+    def generate_libraries_pc_files(self, arch):
+        """
+        Create *.pc files for libraries that `matplotib` depends on.
 
-    python_depends = ['pyparsing', 'cycler', 'python-dateutil']
+        Because, for unix platforms, the mpl install script uses `pkg-config`
+        to detect libraries installed in non standard locations (our case...
+        well...we don't even install the libraries...so we must trick a little
+        the mlp install).
+        """
+        pkg_config_path = self.get_recipe_env(arch)['PKG_CONFIG_PATH']
+        ensure_dir(pkg_config_path)
 
-    # We need to patch to:
-    # - make mpl build against the same numpy version as the numpy recipe
-    #   (this could be done better by setting the target version dynamically)
-    # - prevent mpl trying to build TkAgg, which wouldn't work on Android anyway but has build issues
-    patches = ['mpl_android_fixes.patch']
+        lib_to_pc_file = {
+            # `pkg-config` search for version freetype2.pc, our current
+            # version for freetype, but we have our recipe named without
+            # the version...so we add it in here for our pc file
+            'freetype': 'freetype2.pc',
+        }
 
-    call_hostpython_via_targetpython = False
+        for lib_name in {'freetype'}:
+            pc_template_file = join(
+                self.get_recipe_dir(),
+                f'lib{lib_name}.pc.template'
+            )
+            # read template file into buffer
+            with open(pc_template_file) as template_file:
+                text_buffer = template_file.read()
+            # set the library absolute path and library version
+            lib_recipe = self.get_recipe(lib_name, self.ctx)
+            text_buffer = text_buffer.replace(
+                'path_to_built', lib_recipe.get_build_dir(arch.arch),
+            )
+            text_buffer = text_buffer.replace(
+                'library_version', lib_recipe.version,
+            )
+
+            # write the library pc file into our defined dir `PKG_CONFIG_PATH`
+            pc_dest_file = join(pkg_config_path, lib_to_pc_file[lib_name])
+            with open(pc_dest_file, 'w') as pc_file:
+                pc_file.write(text_buffer)
 
     def prebuild_arch(self, arch):
-        with open(join(self.get_recipe_dir(), 'setup.cfg.template')) as fileh:
-            setup_cfg = fileh.read()
+        shutil.copyfile(
+            join(self.get_recipe_dir(), "setup.cfg.template"),
+            join(self.get_build_dir(arch), "mplsetup.cfg"),
+        )
+        self.generate_libraries_pc_files(arch)
 
-        with open(join(self.get_build_dir(arch), 'setup.cfg'), 'w') as fileh:
-            fileh.write(setup_cfg.format(
-                ndk_sysroot_usr=join(self.ctx.ndk_dir, 'sysroot', 'usr')))
+    def get_recipe_env(self, arch, **kwargs):
+        env = super().get_recipe_env(arch, **kwargs)
+
+        # we make use of the same directory than `XDG_CACHE_HOME`, for our
+        # custom library pc files, so we have all the install files that we
+        # generate at the same place
+        env['XDG_CACHE_HOME'] = join(self.get_build_dir(arch), 'p4a_files')
+        env['PKG_CONFIG_PATH'] = env['XDG_CACHE_HOME']
+
+        # creating proper *.pc files for our libraries does not seem enough to
+        # success with our build (without depending on system development
+        # libraries), but if we tell the compiler where to find our libraries
+        # and includes, then the install success :)
+        freetype = self.get_recipe('freetype', self.ctx)
+        free_lib_dir = join(freetype.get_build_dir(arch.arch), 'objs', '.libs')
+        free_inc_dir = join(freetype.get_build_dir(arch.arch), 'include')
+        env['CFLAGS'] += f' -I{free_inc_dir}'
+        env['LDFLAGS'] += f' -L{free_lib_dir}'
+
+        # `freetype` could be built with `harfbuzz` support,
+        # so we also include the necessary flags...just to be sure
+        if 'harfbuzz' in self.ctx.recipe_build_order:
+            harfbuzz = self.get_recipe('harfbuzz', self.ctx)
+            harf_build = harfbuzz.get_build_dir(arch.arch)
+            env['CFLAGS'] += f' -I{harf_build} -I{join(harf_build, "src")}'
+            env['LDFLAGS'] += f' -L{join(harf_build, "src", ".libs")}'
+        return env
 
 
 recipe = MatplotlibRecipe()

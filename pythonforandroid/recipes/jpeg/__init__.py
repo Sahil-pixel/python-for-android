@@ -27,10 +27,9 @@ class JpegRecipe(Recipe):
             toolchain_file = join(self.ctx.ndk_dir,
                                   'build/cmake/android.toolchain.cmake')
 
-            shprint(sh.rm, '-f', 'CMakeCache.txt', 'CMakeFiles/')
+            shprint(sh.rm, '-rf', 'CMakeCache.txt', 'CMakeFiles/')
             shprint(sh.cmake, '-G', 'Unix Makefiles',
                     '-DCMAKE_SYSTEM_NAME=Android',
-                    '-DCMAKE_SYSTEM_PROCESSOR={cpu}'.format(cpu='arm'),
                     '-DCMAKE_POSITION_INDEPENDENT_CODE=1',
                     '-DCMAKE_ANDROID_ARCH_ABI={arch}'.format(arch=arch.arch),
                     '-DCMAKE_ANDROID_NDK=' + self.ctx.ndk_dir,
@@ -49,6 +48,9 @@ class JpegRecipe(Recipe):
                     # Force disable shared, with the static ones is enough
                     '-DENABLE_SHARED=0',
                     '-DENABLE_STATIC=1',
+
+                    # Fix cmake compatibility issue
+                    '-DCMAKE_POLICY_VERSION_MINIMUM=3.5',
                     _env=env)
             shprint(sh.make, _env=env)
 

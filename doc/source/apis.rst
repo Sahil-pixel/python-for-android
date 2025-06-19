@@ -48,7 +48,7 @@ Requires `Permission.WRITE_EXTERNAL_STORAGE` to read and write to.
 Read more on all the different storage types and what to use them for
 in the Android documentation:
 
-https://developer.android.com/training/data-storage/files
+https://developer.android.com/training/data-storage
 
 A note on permissions
 ~~~~~~~~~~~~~~~~~~~~~
@@ -141,6 +141,205 @@ With Kivy, add an ``on_pause`` method to your App class, which returns True::
 With the webview bootstrap, pausing should work automatically.
 
 Under SDL2, you can handle the `appropriate events <https://wiki.libsdl.org/SDL_EventType>`__ (see SDL_APP_WILLENTERBACKGROUND etc.).
+
+
+Observing Activity result
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. module:: android.activity
+
+The default PythonActivity has a observer pattern for `onActivityResult <https://developer.android.com/reference/android/app/Activity#onActivityResult(int, int, android.content.Intent)>`_ and `onNewIntent <https://developer.android.com/reference/android/app/Activity.html#onNewIntent(android.content.Intent)>`_.
+
+.. function:: bind(eventname=callback, ...)
+
+    This allows you to bind a callback to an Android event:
+    - ``on_new_intent`` is the event associated to the onNewIntent java call
+    - ``on_activity_result`` is the event associated to the onActivityResult java call
+
+    .. warning::
+
+        This method is not thread-safe. Call it in the mainthread of your app. (tips: use kivy.clock.mainthread decorator)
+
+.. function:: unbind(eventname=callback, ...)
+
+    Unregister a previously registered callback with :func:`bind`.
+
+Example::
+
+    # This example is a snippet from an NFC p2p app implemented with Kivy.
+
+    from android import activity
+
+    def on_new_intent(self, intent):
+        if intent.getAction() != NfcAdapter.ACTION_NDEF_DISCOVERED:
+            return
+        rawmsgs = intent.getParcelableArrayExtra(NfcAdapter.EXTRA_NDEF_MESSAGES)
+        if not rawmsgs:
+            return
+        for message in rawmsgs:
+            message = cast(NdefMessage, message)
+            payload = message.getRecords()[0].getPayload()
+            print('payload: {}'.format(''.join(map(chr, payload))))
+
+    def nfc_enable(self):
+        activity.bind(on_new_intent=self.on_new_intent)
+        # ...
+
+    def nfc_disable(self):
+        activity.unbind(on_new_intent=self.on_new_intent)
+        # ...
+
+
+Activity lifecycle handling
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The Android ``Application`` class provides the `ActivityLifecycleCallbacks
+<https://developer.android.com/reference/android/app/Application.ActivityLifecycleCallbacks>`_
+interface where callbacks can be registered corresponding to `activity
+lifecycle
+<https://developer.android.com/guide/components/activities/activity-lifecycle>`_
+changes. These callbacks can be used to implement logic in the Python app when
+the activity changes lifecycle states.
+
+Note that some of the callbacks are not useful in the Python app. For example,
+an `onActivityCreated` callback will never be run since the the activity's
+`onCreate` callback will complete before the Python app is running. Similarly,
+saving instance state in an `onActivitySaveInstanceState` callback will not be
+helpful since the Python app doesn't have access to the restored instance
+state.
+
+.. function:: register_activity_lifecycle_callbacks(callbackname=callback, ...)
+
+    This allows you to bind a callbacks to Activity lifecycle state changes.
+    The callback names correspond to ``ActivityLifecycleCallbacks`` method
+    names such as ``onActivityStarted``. See the `ActivityLifecycleCallbacks
+    <https://developer.android.com/reference/android/app/Application.ActivityLifecycleCallbacks>`_
+    documentation for names and function signatures for the callbacks.
+
+.. function:: unregister_activity_lifecycle_callbacks(instance)
+
+    Unregister a ``ActivityLifecycleCallbacks`` instance previously registered
+    with :func:`register_activity_lifecycle_callbacks`.
+
+Example::
+
+    from android.activity import register_activity_lifecycle_callbacks
+
+    def on_activity_stopped(activity):
+        print('Activity is stopping')
+
+    register_activity_lifecycle_callbacks(
+        onActivityStopped=on_activity_stopped,
+    )
+
+
+Receiving Broadcast message
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. module:: android.broadcast
+
+Implementation of the android `BroadcastReceiver
+<https://developer.android.com/reference/android/content/BroadcastReceiver.html>`_.
+You can specify the callback that will receive the broadcast event, and actions
+or categories filters.
+
+.. class:: BroadcastReceiver
+
+    .. warning::
+
+        The callback will be called in another thread than the main thread. In
+        that thread, be careful not to access OpenGL or something like that.
+
+    .. method:: __init__(callback, actions=None, categories=None)
+
+        :param callback: function or method that will receive the event. Will
+                         receive the context and intent as argument.
+        :param actions: list of strings that represent an action.
+        :param categories: list of strings that represent a category.
+
+        For actions and categories, the string must be in lower case, without the prefix::
+
+            # In java: Intent.ACTION_HEADSET_PLUG
+            # In python: 'headset_plug'
+
+    .. method:: start()
+
+        Register the receiver with all the actions and categories, and start
+        handling events.
+
+    .. method:: stop()
+
+        Unregister the receiver with all the actions and categories, and stop
+        handling events.
+
+Example::
+
+    class TestApp(App):
+
+        def build(self):
+            self.br = BroadcastReceiver(
+                self.on_broadcast, actions=['headset_plug'])
+            self.br.start()
+            # ...
+
+        def on_broadcast(self, context, intent):
+            extras = intent.getExtras()
+            headset_state = bool(extras.get('state'))
+            if headset_state:
+                print('The headset is plugged')
+            else:
+                print('The headset is unplugged')
+
+        # Don't forget to stop and restart the receiver when the app is going
+        # to pause / resume mode
+
+        def on_pause(self):
+            self.br.stop()
+            return True
+
+        def on_resume(self):
+            self.br.start()
+
+Runnable
+~~~~~~~~
+
+.. module:: android.runnable
+
+:class:`Runnable` is a wrapper around the Java `Runnable
+<https://developer.android.com/reference/java/lang/Runnable.html>`_ class. This
+class can be used to schedule a call of a Python function into the
+`PythonActivity` thread.
+
+Example::
+
+    from android.runnable import Runnable
+
+    def helloworld(arg):
+        print 'Called from PythonActivity with arg:', arg
+
+    Runnable(helloworld)('hello')
+
+Or use our decorator::
+
+    from android.runnable import run_on_ui_thread
+
+    @run_on_ui_thread
+    def helloworld(arg):
+        print 'Called from PythonActivity with arg:', arg
+
+    helloworld('arg1')
+
+
+This can be used to prevent errors like:
+
+    - W/System.err( 9514): java.lang.RuntimeException: Can't create handler
+      inside thread that has not called Looper.prepare()
+    - NullPointerException in ActivityThread.currentActivityThread()
+
+.. warning::
+
+    Because the python function is called from the PythonActivity thread, you
+    need to be careful about your own calls.
 
 
 Advanced Android API use
@@ -242,5 +441,5 @@ sometimes a little more involved, particularly if making Java classes
 from Python code), but it's not Pythonic and it's not short. These are
 problems that Plyer, explained below, attempts to address.
 
-You can check the `Pyjnius documentation <https://pyjnius.readthedocs.io/en/stable/>`_ for further details.
+You can check the `Pyjnius documentation <https://pyjnius.readthedocs.io/en/latest/>`_ for further details.
 

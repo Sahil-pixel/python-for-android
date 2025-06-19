@@ -15,8 +15,8 @@ the ``android:process`` attribute of the ``AndroidManifest.xml`` file.
 This is not the default behavior, see `Android service documentation
 <https://developer.android.com/guide/topics/manifest/service-element>`__.
 You can communicate with the service process from your app using e.g.
-`osc <https://pypi.python.org/pypi/python-osc>`__ or (a heavier option)
-`twisted <https://twistedmatrix.com/trac/>`__.
+`osc <https://pypi.org/project/python-osc/>`__ or (a heavier option)
+`twisted <https://twisted.org/>`__.
 
 Service creation
 ----------------
@@ -52,12 +52,26 @@ more flexible, supporting multiple services and a wider range of
 options.
 
 To create the service, create a python script with your service code
-and add a :code:`--service=myservice:/path/to/myservice.py` argument
-when calling python-for-android. The ``myservice`` name before the
-colon is the name of the service class, via which you will interact
-with it later. You can add multiple
-:code:`--service` arguments to include multiple services, which you
-will later be able to stop and start from your app.
+and add a :code:`--service=myservice:PATH_TO_SERVICE_PY` argument
+when calling python-for-android, or in buildozer.spec, a
+:code:`services = myservice:PATH_TO_SERVICE_PY` [app] setting.
+
+The ``myservice`` name before the colon is the name of the service
+class, via which you will interact with it later. 
+
+The ``PATH_TO_SERVICE_PY`` is the relative path to the service entry point (like ``services/myservice.py``)
+
+You can optionally specify the following parameters:
+ - :code:`:foreground` for launching a service as an Android foreground service
+ - :code:`:sticky` for launching a service that gets restarted by the Android OS on exit/error
+
+Full command with all the optional parameters included would be: 
+:code:`--service=myservice:services/myservice.py:foreground:sticky`
+
+You can add multiple
+:code:`--service` arguments to include multiple services, or separate
+them with a comma in buildozer.spec, all of which you will later be
+able to stop and start from your app.
 
 To run the services (i.e. starting them from within your main app
 code), you must use PyJNIus to interact with the java class
@@ -75,7 +89,7 @@ of your APK.
 If you are using buildozer, the identifier is set by the ``package.name``
 and ``package.domain`` values in your buildozer.spec file.
 The name of the service is ``ServiceMyservice``, where ``Myservice``
-is the name specied by one of the ``services`` values, but with the first
+is the name specified by one of the ``services`` values, but with the first
 letter upper case. 
 
 If you are using python-for-android directly, the identifier is set by the ``--package``
@@ -93,6 +107,14 @@ the json module to encode and decode more complex data.
 
     from os import environ
     argument = environ.get('PYTHON_SERVICE_ARGUMENT', '')
+    
+To customize the notification icon, title, and text use three optional
+arguments to service.start()::
+
+    service.start(mActivity, 'small_icon', 'title', 'content' , argument)
+
+Where 'small_icon' is the name of an Android drawable or mipmap resource,
+and 'title' and 'content' are strings in the notification.
 
 Services support a range of options and interactions not yet
 documented here but all accessible via calling other methods of the

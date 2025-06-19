@@ -1,52 +1,79 @@
-from pythonforandroid.recipe import CythonRecipe
-from pythonforandroid.toolchain import current_directory, shprint
-from os.path import exists, join, basename
+from os.path import join
+import sys
+import packaging.version
+
 import sh
-import glob
+from pythonforandroid.recipe import PyProjectRecipe
+from pythonforandroid.toolchain import current_directory, shprint
 
 
-class KivyRecipe(CythonRecipe):
-    version = '1.11.1'
+def is_kivy_affected_by_deadlock_issue(recipe=None, arch=None):
+    with current_directory(join(recipe.get_build_dir(arch.arch), "kivy")):
+        kivy_version = shprint(
+            sh.Command(sys.executable),
+            "-c",
+            "import _version; print(_version.__version__)",
+        )
+
+        return packaging.version.parse(
+            str(kivy_version)
+        ) < packaging.version.Version("2.2.0.dev0")
+
+
+class KivyRecipe(PyProjectRecipe):
+    version = '2.3.1'
     url = 'https://github.com/kivy/kivy/archive/{version}.zip'
     name = 'kivy'
 
-    depends = ['sdl2', 'pyjnius', 'setuptools']
+    depends = [('sdl2', 'sdl3'), 'pyjnius', 'setuptools']
+    python_depends = ['certifi', 'chardet', 'idna', 'requests', 'urllib3', 'filetype']
+    hostpython_prerequisites = []
 
-    def cythonize_build(self, env, build_dir='.'):
-        super(KivyRecipe, self).cythonize_build(env, build_dir=build_dir)
+    # sdl-gl-swapwindow-nogil.patch is needed to avoid a deadlock.
+    # See: https://github.com/kivy/kivy/pull/8025
+    # WARNING: Remove this patch when a new Kivy version is released.
+    patches = [("sdl-gl-swapwindow-nogil.patch", is_kivy_affected_by_deadlock_issue), "use_cython.patch"]
 
-        if not exists(join(build_dir, 'kivy', 'include')):
-            return
+    def get_recipe_env(self, arch, **kwargs):
+        env = super().get_recipe_env(arch, **kwargs)
 
-        # If kivy is new enough to use the include dir, copy it
-        # manually to the right location as we bypass this stage of
-        # the build
-        with current_directory(build_dir):
-            build_libs_dirs = glob.glob(join('build', 'lib.*'))
+        # Taken from CythonRecipe
+        env['LDFLAGS'] = env['LDFLAGS'] + ' -L{} '.format(
+            self.ctx.get_libs_dir(arch.arch) +
+            ' -L{} '.format(self.ctx.libs_dir) +
+            ' -L{}'.format(join(self.ctx.bootstrap.build_dir, 'obj', 'local',
+                                arch.arch)))
+        env['LDSHARED'] = env['CC'] + ' -shared'
+        env['LIBLINK'] = 'NOTNONE'
 
-            for dirn in build_libs_dirs:
-                shprint(sh.cp, '-r', join('kivy', 'include'),
-                        join(dirn, 'kivy'))
-
-    def cythonize_file(self, env, build_dir, filename):
-        # We can ignore a few files that aren't important to the
-        # android build, and may not work on Android anyway
-        do_not_cythonize = ['window_x11.pyx', ]
-        if basename(filename) in do_not_cythonize:
-            return
-        super(KivyRecipe, self).cythonize_file(env, build_dir, filename)
-
-    def get_recipe_env(self, arch):
-        env = super(KivyRecipe, self).get_recipe_env(arch)
+        # NDKPLATFORM is our switch for detecting Android platform, so can't be None
+        env['NDKPLATFORM'] = "NOTNONE"
         if 'sdl2' in self.ctx.recipe_build_order:
             env['USE_SDL2'] = '1'
             env['KIVY_SPLIT_EXAMPLES'] = '1'
+            sdl2_mixer_recipe = self.get_recipe('sdl2_mixer', self.ctx)
+            sdl2_image_recipe = self.get_recipe('sdl2_image', self.ctx)
             env['KIVY_SDL2_PATH'] = ':'.join([
                 join(self.ctx.bootstrap.build_dir, 'jni', 'SDL', 'include'),
-                join(self.ctx.bootstrap.build_dir, 'jni', 'SDL2_image'),
-                join(self.ctx.bootstrap.build_dir, 'jni', 'SDL2_mixer'),
+                *sdl2_image_recipe.get_include_dirs(arch),
+                *sdl2_mixer_recipe.get_include_dirs(arch),
                 join(self.ctx.bootstrap.build_dir, 'jni', 'SDL2_ttf'),
-                ])
+            ])
+        if "sdl3" in self.ctx.recipe_build_order:
+            sdl3_mixer_recipe = self.get_recipe("sdl3_mixer", self.ctx)
+            sdl3_image_recipe = self.get_recipe("sdl3_image", self.ctx)
+            sdl3_ttf_recipe = self.get_recipe("sdl3_ttf", self.ctx)
+            sdl3_recipe = self.get_recipe("sdl3", self.ctx)
+            env["USE_SDL3"] = "1"
+            env["KIVY_SPLIT_EXAMPLES"] = "1"
+            env["KIVY_SDL3_PATH"] = ":".join(
+                [
+                    *sdl3_mixer_recipe.get_include_dirs(arch),
+                    *sdl3_image_recipe.get_include_dirs(arch),
+                    *sdl3_ttf_recipe.get_include_dirs(arch),
+                    *sdl3_recipe.get_include_dirs(arch),
+                ]
+            )
 
         return env
 

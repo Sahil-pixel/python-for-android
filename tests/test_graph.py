@@ -13,7 +13,7 @@ import pytest
 
 ctx = Context()
 
-name_sets = [['python2'],
+name_sets = [['python3'],
              ['kivy']]
 bootstraps = [None,
               Bootstrap.get_bootstrap('sdl2', ctx)]
@@ -26,7 +26,7 @@ valid_combinations.extend(
     ]
 )
 invalid_combinations = [
-    [['python2', 'python3'], None],
+    [['pil', 'pillow'], None],
     [['pysdl2', 'genericndkbuild'], None],
 ]
 invalid_combinations_simple = list(invalid_combinations)
@@ -101,9 +101,9 @@ def test_blacklist():
         get_recipe_order_and_bootstrap(ctx, ["flask", "kivy"], wbootstrap)
     assert "conflict" in e_info.value.message.lower()
 
-    # We should no longer get a conflict blacklisting sdl2:
+    # We should no longer get a conflict blacklisting sdl2 and sdl3
     get_recipe_order_and_bootstrap(
-        ctx, ["flask", "kivy"], wbootstrap, blacklist=["sdl2"]
+        ctx, ["flask", "kivy"], wbootstrap, blacklist=["sdl2", "sdl3"]
     )
 
 
@@ -115,7 +115,7 @@ def test_get_dependency_tuple_list_for_recipe(monkeypatch):
     dep_list = get_dependency_tuple_list_for_recipe(
         r, blacklist={"libffi"}
     )
-    assert(dep_list == [("pillow",)])
+    assert dep_list == [("pillow",)]
 
 
 @pytest.mark.parametrize('names,bootstrap', valid_combinations)
@@ -211,7 +211,7 @@ def test_multichoice_obvious_conflict_checker(monkeypatch):
 def test_bootstrap_dependency_addition():
     build_order, python_modules, bs = get_recipe_order_and_bootstrap(
         ctx, ['kivy'], None)
-    assert (('hostpython2' in build_order) or ('hostpython3' in build_order))
+    assert ('hostpython3' in build_order)
 
 
 def test_graph_deplist_transformation():
@@ -227,8 +227,8 @@ def test_graph_deplist_transformation():
 
 def test_bootstrap_dependency_addition2():
     build_order, python_modules, bs = get_recipe_order_and_bootstrap(
-        ctx, ['kivy', 'python2'], None)
-    assert 'hostpython2' in build_order
+        ctx, ['kivy', 'python3'], None)
+    assert 'hostpython3' in build_order
 
 
 if __name__ == "__main__":
