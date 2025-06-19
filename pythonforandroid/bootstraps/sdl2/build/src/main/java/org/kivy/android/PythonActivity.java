@@ -599,6 +599,16 @@ public class PythonActivity extends SDLActivity {
         considerLoadingScreenRemoval();
     }
 
+	@Override
+	public void onBackPressed() {
+	    Log.i("PythonActivity", "🔙 Back pressed in PythonActivity");
+	
+	    // Optional: handle or modify behavior here
+	
+	    super.onBackPressed(); // 🔁 Pass to SDLActivity
+	}
+	
+	
     @Override
     public void onWindowFocusChanged(boolean hasFocus) {
         try {
